@@ -84,23 +84,65 @@ sudo ./scripts/install-gfw-knocker.sh
 
 ## Usage
 
-### Starting Services
+### Process Management
+
+Flowless includes a CLI tool for easy process management:
 
 ```bash
-# Start Paqet
-sudo systemctl start paqet
+# Check status of all backends
+flowless status
 
-# Start GFW-Knocker
+# Check specific backend
+flowless status paqet
+
+# Start a backend
+sudo flowless start paqet
+sudo flowless start gfw-knocker
+
+# Stop a backend
+sudo flowless stop paqet
+
+# Restart a backend
+sudo flowless restart paqet
+
+# List installed backends
+flowless list
+```
+
+### Monitoring and Statistics
+
+```bash
+# View resource usage
+flowless stats
+
+# Live monitoring (updates every 2s)
+flowless watch
+
+# View specific backend stats
+flowless stats paqet
+flowless watch paqet
+```
+
+The monitoring displays:
+- Process status (running/stopped)
+- PID and uptime
+- CPU and memory usage
+- Active SOCKS5 connections
+- Port status
+
+### Using Systemd
+
+You can also manage services directly with systemd:
+
+```bash
+# Start services
+sudo systemctl start paqet
 sudo systemctl start gfw-knocker
 
 # Enable auto-start on boot
 sudo systemctl enable paqet
 sudo systemctl enable gfw-knocker
-```
 
-### Checking Status
-
-```bash
 # Check service status
 sudo systemctl status paqet
 sudo systemctl status gfw-knocker
@@ -108,14 +150,30 @@ sudo systemctl status gfw-knocker
 # View logs
 sudo journalctl -u paqet -f
 sudo journalctl -u gfw-knocker -f
-```
 
-### Stopping Services
-
-```bash
+# Stop services
 sudo systemctl stop paqet
 sudo systemctl stop gfw-knocker
 ```
+
+### Auto-Restart with Watchdog
+
+Enable automatic restart on failures:
+
+```bash
+# Install watchdog service
+sudo cp systemd/flowless-watchdog.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Enable and start watchdog
+sudo systemctl enable flowless-watchdog
+sudo systemctl start flowless-watchdog
+
+# Check watchdog status
+sudo systemctl status flowless-watchdog
+```
+
+The watchdog automatically restarts crashed backends with exponential backoff (5s, 10s, 20s, 40s, 80s) and gives up after 5 attempts within 5 minutes.
 
 ## Configuration
 
@@ -181,15 +239,37 @@ flowless/
 │   └── README.md          # Paqet documentation
 ├── gfw-knocker/           # GFW-Knocker-specific files
 │   └── README.md          # GFW-Knocker documentation
+├── bin/                   # CLI tools
+│   └── flowless           # Process management CLI
+├── lib/                   # Core libraries
+│   ├── process-manager.sh # Process lifecycle management
+│   ├── resource-monitor.sh # Resource tracking
+│   ├── watchdog.sh        # Auto-restart daemon
+│   ├── config-loader.sh   # Configuration loading
+│   ├── config-writer.sh   # Configuration writing
+│   └── validators.sh      # Input validation
 ├── config/                # Configuration templates
 │   ├── paqet.conf         # Paqet configuration
 │   ├── gfw-knocker.conf   # GFW-Knocker configuration
+│   ├── watchdog.conf      # Watchdog configuration
 │   └── xray-config.json   # Xray configuration template
-├── scripts/               # Installation scripts
+├── scripts/               # Installation and utility scripts
 │   ├── install.sh         # Main installation script
 │   ├── install-paqet.sh   # Paqet installer
-│   └── install-gfw-knocker.sh  # GFW-Knocker installer
-└── systemd/               # Systemd service files
+│   ├── install-gfw-knocker.sh  # GFW-Knocker installer
+│   └── flowless-watchdog  # Watchdog daemon script
+├── systemd/               # Systemd service files
+│   ├── paqet.service      # Paqet service
+│   ├── gfw-knocker.service # GFW-Knocker service
+│   └── flowless-watchdog.service # Watchdog service
+├── tests/                 # Test suites
+│   ├── test-config.sh     # Configuration tests
+│   └── test-process-manager.sh # Process management tests
+└── docs/                  # Documentation
+    ├── architecture.md    # System architecture
+    ├── configuration.md   # Configuration guide
+    ├── operations.md      # Operations guide
+    └── troubleshooting.md # Troubleshooting guide
     ├── paqet.service      # Paqet service
     └── gfw-knocker.service # GFW-Knocker service
 ```
