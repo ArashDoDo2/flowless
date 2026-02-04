@@ -1,0 +1,38 @@
+[Unit]
+Description=Flowless GFW-Knocker Stateless Relay
+Documentation=https://github.com/ArashDoDo2/flowless
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+
+# Execute gfw-knocker binary with configuration
+ExecStart=/usr/local/bin/gfw-knocker -c /etc/flowless/gfk.conf
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flowless-gfk
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/flowless
+
+# GFW-Knocker requires raw socket capability for packet manipulation
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target
