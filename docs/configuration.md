@@ -4,10 +4,53 @@
 
 Flowless uses simple text-based configuration files for each relay method. All configuration files are located in `/etc/flowless/` after installation.
 
+**Security Note**: Flowless includes a secure configuration management system that safely loads and validates configuration files without using `eval` or `source`. This prevents code injection attacks and ensures all configuration values are properly sanitized.
+
 ## Configuration Files
 
 - `/etc/flowless/paqet.conf` - Paqet method configuration
 - `/etc/flowless/gfk.conf` - GFW-Knocker method configuration
+
+## Configuration Security
+
+Flowless implements multiple security measures to protect against configuration-based attacks:
+
+### Safe Configuration Loading
+
+The configuration loader (`lib/config-loader.sh`) implements the following security features:
+
+1. **No eval/source**: Configuration files are parsed line-by-line without executing any code
+2. **Whitelist validation**: Configuration keys must match the pattern `^[A-Z_][A-Z_0-9]*$`
+3. **Value sanitization**: Rejects values containing dangerous shell metacharacters (`` ` $ ( ) { } [ ] < > | ; & ! ``)
+4. **Type validation**: Numeric values (ports) are validated to be within valid ranges (1-65535)
+5. **IP/hostname validation**: Network addresses are validated for correct format
+
+### Atomic Configuration Updates
+
+The configuration writer (`lib/config-writer.sh`) ensures safe file updates:
+
+1. **Atomic writes**: Uses temporary files + `mv` for atomic operations
+2. **Automatic backups**: Creates `.backup` files before overwriting
+3. **Secure permissions**: Sets file mode to 600 (owner read/write only)
+4. **Pre-write validation**: All values are validated before writing
+
+### Validation Rules
+
+Configuration values must adhere to these rules:
+
+- **Ports**: Must be numeric, range 1-65535
+- **IP addresses**: Must be valid IPv4 format (e.g., `192.168.1.1`)
+- **Hostnames**: Must follow RFC standards (alphanumeric, hyphens, dots only)
+- **Paths**: No excessive parent directory traversal (`../../../` etc.)
+- **All values**: No shell metacharacters that could lead to code injection
+
+### Escaping Special Characters
+
+If you need to use special characters in configuration values, consider these guidelines:
+
+1. **Avoid when possible**: The safest approach is to avoid special characters
+2. **Alphanumeric preferred**: Use letters, numbers, dots, and hyphens
+3. **Rejected characters**: `` ` $ ( ) { } [ ] < > | ; & ! \ `` and control characters
 
 ## Paqet Configuration
 
@@ -326,3 +369,75 @@ sudo systemctl restart flowless-paqet
 2. Check firewall allows server_port
 3. Confirm server is running and configured
 4. Test with curl: `curl --socks5 127.0.0.1:port https://example.com`
+
+## Security Best Practices
+
+### File Permissions
+
+Configuration files should have restricted permissions to prevent unauthorized access:
+
+```bash
+# Set secure permissions (owner read/write only)
+sudo chmod 600 /etc/flowless/paqet.conf
+sudo chmod 600 /etc/flowless/gfk.conf
+
+# Verify permissions
+ls -l /etc/flowless/
+```
+
+The safe configuration writer automatically sets these permissions, but it's good practice to verify.
+
+### Regular Audits
+
+Periodically review your configuration files:
+
+```bash
+# Check for unauthorized modifications
+sudo ls -l /etc/flowless/
+sudo cat /etc/flowless/paqet.conf
+```
+
+### Input Validation
+
+When programmatically updating configuration files, always use the provided safe configuration libraries:
+
+```bash
+# Example using the safe config library
+source /path/to/flowless/lib/validators.sh
+source /path/to/flowless/lib/config-writer.sh
+
+# Validate before writing
+if validate_port "1080"; then
+    write_config "/etc/flowless/paqet.conf" "local_port" "1080"
+fi
+```
+
+### Avoid Manual Editing of Sensitive Values
+
+For sensitive configuration values, consider:
+1. Using the safe configuration writer
+2. Verifying all changes before applying
+3. Keeping backup copies
+4. Testing in a non-production environment first
+
+### Configuration File Ownership
+
+Ensure configuration files are owned by root or appropriate system user:
+
+```bash
+# Set ownership to root
+sudo chown root:root /etc/flowless/*.conf
+```
+
+### Never Source User-Provided Configs
+
+**DANGER**: Never use `source` or `.` to load configuration files that might contain user input. This can lead to arbitrary code execution. Always use the safe configuration loader provided in `lib/config-loader.sh`.
+
+```bash
+# ❌ DANGEROUS - Never do this
+source /etc/flowless/paqet.conf
+
+# ✅ SAFE - Use the secure loader
+source /path/to/flowless/lib/config-loader.sh
+load_config "/etc/flowless/paqet.conf" "PAQET_"
+```

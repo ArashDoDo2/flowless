@@ -78,8 +78,13 @@ kcp_datashard=10
 kcp_parityshard=3
 EOF
 fi
+
+# Set secure file permissions
+chmod 600 "$CONFIG_DIR/paqet.conf"
+
 echo -e "${GREEN}✓ Configuration installed to $CONFIG_DIR/paqet.conf${NC}"
 echo -e "${YELLOW}⚠ Remember to edit $CONFIG_DIR/paqet.conf with your server details${NC}"
+echo -e "${YELLOW}ℹ To safely update config, use the provided config libraries in lib/config-writer.sh${NC}"
 
 # Install systemd service
 echo -e "${YELLOW}Installing systemd service...${NC}"
