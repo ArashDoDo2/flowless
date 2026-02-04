@@ -1,0 +1,27 @@
+[Unit]
+Description=Flowless Watchdog - Auto-restart crashed backends
+Documentation=https://github.com/ArashDoDo2/flowless
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/flowless-watchdog
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flowless-watchdog
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Allow watchdog to restart services
+CapabilityBoundingSet=CAP_KILL CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target

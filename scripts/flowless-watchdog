@@ -1,0 +1,22 @@
+#!/bin/bash
+# Flowless Watchdog Daemon
+# Monitors and auto-restarts crashed backends
+
+set -euo pipefail
+
+# Source required libraries
+LIB_DIR="/usr/local/lib/flowless"
+
+# Fallback to local lib if not installed
+if [ ! -d "$LIB_DIR" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LIB_DIR="$(cd "${SCRIPT_DIR}/../lib" && pwd)"
+fi
+
+source "${LIB_DIR}/watchdog.sh" || {
+    echo "Failed to load watchdog.sh" >&2
+    exit 1
+}
+
+# Run watchdog loop
+run_watchdog
