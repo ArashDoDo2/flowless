@@ -1,0 +1,32 @@
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+*.o
+*.so
+*.a
+*.dylib
+*.exe
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Testing
+test-install/
+tmp/
+
+# Binaries (should be provided separately)
+paqet
+xray
+*.bin

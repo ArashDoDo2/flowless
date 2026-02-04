@@ -1,261 +1,249 @@
 # flowless
 
-**Flow-less stateless packet relay toolkit**
-
-A modular infrastructure tool for managing stateless transport methods. This repository provides installers, configuration templates, service management, and documentation for packet relay mechanisms that operate without maintaining connection state.
-
----
+A modular stateless packet relay toolkit providing secure network transport mechanisms.
 
 ## Overview
 
-`flowless` is a transport-agnostic management layer supporting multiple stateless relay methods. Each method operates independently with its own local SOCKS5 proxy, allowing simultaneous deployment based on network conditions.
+flowless is a lightweight, modular packet relay system designed for stateless network transport. It provides two distinct methods for different use cases:
 
-### Architecture
+1. **Paqet** - Simple, efficient KCP-based relay
+2. **GFW-Knocker** - Advanced multi-protocol relay with evasion capabilities
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Application Layer                     │
-│                    (Browser, curl, etc.)                     │
-└──────────────────┬──────────────────────┬───────────────────┘
-                   │                      │
-                   ▼                      ▼
-        ┌──────────────────┐   ┌──────────────────┐
-        │  SOCKS5 Proxy    │   │  SOCKS5 Proxy    │
-        │   127.0.0.1      │   │   127.0.0.1      │
-        │   :1080          │   │   :14000         │
-        └────────┬─────────┘   └────────┬─────────┘
-                 │                      │
-                 ▼                      ▼
-        ┌──────────────────┐   ┌──────────────────┐
-        │     Paqet        │   │   GFW-Knocker    │
-        │  (KCP/raw)       │   │  (malformed TCP  │
-        │                  │   │  + QUIC tunnel)  │
-        └────────┬─────────┘   └────────┬─────────┘
-                 │                      │
-                 └──────────┬───────────┘
-                            │
-                            ▼
-                   ┌────────────────┐
-                   │    Internet    │
-                   └────────────────┘
-```
+## Features
 
-### Stateless Design
+- **Modular Architecture**: Each method operates independently with dedicated configuration
+- **Stateless Design**: No session state maintained across connections
+- **SOCKS5 Proxy**: Standard interface for client applications
+- **Systemd Integration**: Native service management for Linux systems
+- **Simple Installation**: Automated scripts for quick deployment
 
-Traditional VPN and proxy solutions maintain connection state, tracking individual flows, sessions, and packets. Stateless relay methods operate differently:
-
-- **No flow tracking**: Each packet is processed independently
-- **No session state**: No client-server handshake memory
-- **Minimal server resources**: Server doesn't track clients
-- **Resilient to disruption**: Connection resumes without re-negotiation
-
-This approach reduces overhead and simplifies infrastructure at the cost of some optimization opportunities.
-
----
-
-## Supported Methods
-
-### Method Comparison
-
-| Feature               | Paqet                  | GFW-Knocker (GFK)                |
-|-----------------------|------------------------|----------------------------------|
-| **Difficulty**        | Easy                   | Advanced                         |
-| **Local SOCKS5 Port** | 127.0.0.1:1080         | 127.0.0.1:14000                  |
-| **Transport**         | KCP over raw sockets   | Malformed TCP + QUIC tunnel      |
-| **Server Components** | paqet only             | GFW-Knocker + Xray backend       |
-| **Use Case**          | Standard networks      | Highly restricted networks       |
-| **Setup Complexity**  | Low                    | High                             |
-| **Performance**       | Good                   | Moderate (extra encapsulation)   |
+## Architecture
 
 ### Paqet
 
-**Transport**: KCP (reliable UDP) over raw sockets  
-**Recommendation**: Default choice for most scenarios
+Paqet provides a straightforward relay mechanism using KCP over raw sockets:
 
-Paqet implements a straightforward stateless relay using KCP protocol. Best suited for networks without deep packet inspection.
+- **Protocol**: KCP over raw sockets
+- **SOCKS5 Port**: 127.0.0.1:1080
+- **Use Case**: General-purpose, efficient packet relay
+- **Binary**: Expects `paqet` binary in PATH or `/opt/flowless/bin/`
 
-**Characteristics**:
-- Single binary deployment
-- Minimal configuration
-- Standard network compatibility
+### GFW-Knocker
 
-### GFW-Knocker (GFK)
+GFW-Knocker offers advanced relay capabilities with protocol obfuscation:
 
-**Transport**: Encrypted QUIC over intentionally malformed TCP  
-**Recommendation**: Networks with active traffic analysis
-
-GFW-Knocker uses packet manipulation techniques to encapsulate QUIC traffic within malformed TCP segments. Requires backend infrastructure.
-
-**Characteristics**:
-- Two-component architecture (GFK + Xray)
-- Advanced configuration
-- Designed for adversarial network conditions
-
----
-
-## Decision Flow
-
-```
-                    START
-                      |
-                      v
-        Is the network highly restricted?
-        (Active DPI, protocol blocking, etc.)
-                      |
-         ┌────────────┴────────────┐
-         │                         │
-        YES                       NO
-         │                         │
-         v                         v
-  ┌─────────────────┐    ┌─────────────────┐
-  │  GFW-Knocker    │    │     Paqet       │
-  │   (Advanced)    │    │     (Easy)      │
-  └─────────────────┘    └─────────────────┘
-         │                         │
-         └────────────┬────────────┘
-                      │
-                      v
-            Both can run simultaneously
-```
-
-**Note**: Both methods can be installed and operated concurrently. They use separate ports and do not interfere with each other.
-
----
+- **Protocol**: Malformed TCP + QUIC via Xray backend
+- **SOCKS5 Port**: 127.0.0.1:14000
+- **Use Case**: Advanced scenarios requiring protocol diversity
+- **Binary**: Expects `xray` binary in PATH or `/opt/flowless/bin/`
 
 ## Installation
 
-All installation scripts are located in the `/install` directory.
-
-### Install Paqet Only
-
-```bash
-sudo ./install/install-paqet.sh
-```
-
-### Install GFW-Knocker Only
-
-```bash
-sudo ./install/install-gfk.sh
-```
-
-### Install Both Methods
-
-```bash
-sudo ./install/install-all.sh
-```
-
-### Requirements
+### Prerequisites
 
 - Linux system with systemd
-- Root access (for service installation)
-- Internet connectivity (for downloading binaries)
+- Root or sudo access
+- External binaries (`paqet` and/or `xray`) must be provided separately
 
----
+### Quick Install
+
+```bash
+# Clone repository
+git clone https://github.com/ArashDoDo2/flowless.git
+cd flowless
+
+# Install both methods
+sudo ./scripts/install.sh
+
+# Or install individually
+sudo ./scripts/install-paqet.sh
+sudo ./scripts/install-gfw-knocker.sh
+```
+
+### Manual Installation
+
+1. Copy binaries to `/opt/flowless/bin/`:
+   ```bash
+   sudo mkdir -p /opt/flowless/bin
+   sudo cp /path/to/paqet /opt/flowless/bin/
+   sudo cp /path/to/xray /opt/flowless/bin/
+   ```
+
+2. Copy configuration files:
+   ```bash
+   sudo mkdir -p /etc/flowless
+   sudo cp config/paqet.conf /etc/flowless/
+   sudo cp config/gfw-knocker.conf /etc/flowless/
+   ```
+
+3. Install systemd services:
+   ```bash
+   sudo cp systemd/*.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   ```
+
+## Usage
+
+### Starting Services
+
+```bash
+# Start Paqet
+sudo systemctl start paqet
+
+# Start GFW-Knocker
+sudo systemctl start gfw-knocker
+
+# Enable auto-start on boot
+sudo systemctl enable paqet
+sudo systemctl enable gfw-knocker
+```
+
+### Checking Status
+
+```bash
+# Check service status
+sudo systemctl status paqet
+sudo systemctl status gfw-knocker
+
+# View logs
+sudo journalctl -u paqet -f
+sudo journalctl -u gfw-knocker -f
+```
+
+### Stopping Services
+
+```bash
+sudo systemctl stop paqet
+sudo systemctl stop gfw-knocker
+```
 
 ## Configuration
 
-Configuration files are located in `/config` with sensible defaults.
-
 ### Paqet Configuration
 
-Edit `/config/paqet.conf`:
-- **Local SOCKS5 port**: 1080
-- **Server address**: Must be provided
-- **KCP parameters**: Tunable for your network
+Edit `/etc/flowless/paqet.conf`:
+
+```
+# Local SOCKS5 address
+SOCKS_ADDR=127.0.0.1:1080
+
+# Remote relay endpoint
+REMOTE_ADDR=remote.example.com:4000
+
+# KCP parameters
+KCP_MODE=fast3
+```
 
 ### GFW-Knocker Configuration
 
-Edit `/config/gfk.conf`:
-- **Local SOCKS5 port**: 14000
-- **Server address**: Must be provided
-- **Backend Xray address**: Required
+Edit `/etc/flowless/gfw-knocker.conf`:
 
----
+```
+# Local SOCKS5 address
+SOCKS_ADDR=127.0.0.1:14000
 
-## Service Management
+# Xray configuration file
+XRAY_CONFIG=/etc/flowless/xray-config.json
 
-Services are managed via systemd.
-
-### Paqet Service
-
-```bash
-# Start
-sudo systemctl start flowless-paqet
-
-# Enable on boot
-sudo systemctl enable flowless-paqet
-
-# Check status
-sudo systemctl status flowless-paqet
-
-# View logs
-sudo journalctl -u flowless-paqet -f
+# Log level
+LOG_LEVEL=warning
 ```
 
-### GFW-Knocker Service
+## Network Endpoints
 
+| Method      | Protocol          | Local Address      | Purpose              |
+|-------------|-------------------|--------------------|----------------------|
+| Paqet       | SOCKS5/KCP        | 127.0.0.1:1080     | General relay        |
+| GFW-Knocker | SOCKS5/TCP+QUIC   | 127.0.0.1:14000    | Advanced relay       |
+
+## Client Configuration
+
+Configure your applications to use the SOCKS5 proxy:
+
+- **Paqet**: `socks5://127.0.0.1:1080`
+- **GFW-Knocker**: `socks5://127.0.0.1:14000`
+
+Examples:
 ```bash
-# Start
-sudo systemctl start flowless-gfk
-
-# Enable on boot
-sudo systemctl enable flowless-gfk
-
-# Check status
-sudo systemctl status flowless-gfk
-
-# View logs
-sudo journalctl -u flowless-gfk -f
-```
-
----
-
-## Testing Connectivity
-
-Once services are running, test with curl:
-
-### Test Paqet (port 1080)
-
-```bash
+# Using curl with Paqet
 curl --socks5 127.0.0.1:1080 https://example.com
-```
 
-### Test GFW-Knocker (port 14000)
-
-```bash
+# Using curl with GFW-Knocker
 curl --socks5 127.0.0.1:14000 https://example.com
 ```
 
----
+## Directory Structure
 
-## Documentation
+```
+flowless/
+├── README.md              # This file
+├── paqet/                 # Paqet-specific files
+│   └── README.md          # Paqet documentation
+├── gfw-knocker/           # GFW-Knocker-specific files
+│   └── README.md          # GFW-Knocker documentation
+├── config/                # Configuration templates
+│   ├── paqet.conf         # Paqet configuration
+│   ├── gfw-knocker.conf   # GFW-Knocker configuration
+│   └── xray-config.json   # Xray configuration template
+├── scripts/               # Installation scripts
+│   ├── install.sh         # Main installation script
+│   ├── install-paqet.sh   # Paqet installer
+│   └── install-gfw-knocker.sh  # GFW-Knocker installer
+└── systemd/               # Systemd service files
+    ├── paqet.service      # Paqet service
+    └── gfw-knocker.service # GFW-Knocker service
+```
 
-Detailed documentation is available in the `/docs` directory:
+## Troubleshooting
 
-- Architecture and design principles
-- Configuration guides
-- Troubleshooting
-- Performance tuning
+### Service fails to start
 
----
+1. Check binary exists:
+   ```bash
+   ls -l /opt/flowless/bin/
+   ```
+
+2. Verify configuration:
+   ```bash
+   cat /etc/flowless/paqet.conf
+   cat /etc/flowless/gfw-knocker.conf
+   ```
+
+3. Check logs:
+   ```bash
+   sudo journalctl -u paqet --no-pager
+   sudo journalctl -u gfw-knocker --no-pager
+   ```
+
+### Port already in use
+
+If ports 1080 or 14000 are already in use, modify the configuration files and restart services.
+
+### Permission denied
+
+Ensure services run with appropriate privileges. Both services are configured to run as dedicated system users.
+
+## Security Considerations
+
+- Services bind to localhost (127.0.0.1) only by default
+- Configuration files should have restricted permissions (600)
+- Binaries should be verified before installation
+- Regular security updates recommended for dependencies
 
 ## License
 
-This project provides infrastructure tooling only. Binary dependencies maintain their respective licenses.
+This project provides infrastructure only. Refer to individual binary licenses for protocol implementations.
 
----
+## Contributing
 
-## Project Scope
+Contributions welcome. Please ensure:
+- Scripts are POSIX-compliant where possible
+- Documentation is updated for new features
+- Testing performed on multiple distributions
 
-This repository contains:
-- Installation scripts
-- Configuration templates
-- systemd service definitions
-- Documentation
+## Support
 
-This repository does NOT contain:
-- Protocol implementations
-- Transport internals
-- Binary executables (downloaded during installation)
-
-External binaries are managed by their respective projects.
+For issues and questions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review logs for error messages
