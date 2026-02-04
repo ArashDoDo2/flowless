@@ -306,3 +306,269 @@ Key indicators:
 - Check logs: journalctl -u flowless-*
 - Verify server is responding
 - Check for configuration errors
+
+## Process Lifecycle Management
+
+### Overview
+
+Flowless includes comprehensive process management for backend services:
+- **Auto-restart** - Automatic recovery from crashes
+- **Exponential backoff** - Intelligent restart delays to prevent loops
+- **Graceful shutdown** - Clean termination with fallback to force-kill
+- **Health monitoring** - Continuous process and port checks
+- **Resource tracking** - CPU, memory, and connection metrics
+
+### Process States
+
+```
+┌─────────┐
+│ Stopped │
+└────┬────┘
+     │ systemctl start / flowless start
+     ▼
+┌─────────┐
+│Starting │ ◄───────┐
+└────┬────┘         │
+     │              │ Auto-restart
+     │ PID created  │ (on crash)
+     ▼              │
+┌─────────┐         │
+│ Running │─────────┘
+└────┬────┘
+     │ systemctl stop / flowless stop
+     ▼
+┌──────────┐
+│ Stopping │ (SIGTERM → wait → SIGKILL)
+└────┬─────┘
+     │
+     ▼
+┌─────────┐
+│ Stopped │
+└─────────┘
+```
+
+### State Transitions
+
+**Stopped → Starting**
+- Triggered by: `systemctl start`, `flowless start`, or auto-restart
+- Actions: Create PID file, start process, wait for validation
+
+**Starting → Running**
+- Condition: Process alive after 2 seconds, PID valid, port listening (if applicable)
+- Actions: Log success, begin health monitoring
+
+**Starting → Stopped**
+- Condition: Process dies immediately after start
+- Actions: Remove PID file, log error, trigger restart (if watchdog enabled)
+
+**Running → Stopping**
+- Triggered by: `systemctl stop`, `flowless stop`, or shutdown
+- Actions: Send SIGTERM, wait (default: 30s), send SIGKILL if needed
+
+**Running → Stopped** (crash)
+- Condition: Process exits unexpectedly
+- Actions: Watchdog detects, triggers auto-restart with exponential backoff
+
+### Auto-Restart Decision Tree
+
+```
+Process crashed?
+    │
+    ├─ No → Continue monitoring
+    │
+    └─ Yes
+        │
+        ├─ Restart count < MAX_RESTARTS?
+        │   │
+        │   ├─ Yes
+        │   │   │
+        │   │   ├─ Calculate backoff: 5 * (2 ^ restart_count) seconds
+        │   │   ├─ Wait backoff period
+        │   │   ├─ Attempt restart via systemctl
+        │   │   ├─ Increment restart count
+        │   │   └─ Log attempt
+        │   │
+        │   └─ No
+        │       │
+        │       ├─ Log: Max restarts exceeded
+        │       ├─ Send alert
+        │       └─ Give up
+        │
+        └─ Outside restart window (5 minutes)?
+            │
+            └─ Yes → Reset restart count to 0
+```
+
+### Watchdog Architecture
+
+```
+┌─────────────────────────────────────────┐
+│       Flowless Watchdog Daemon          │
+│  (systemd service: flowless-watchdog)   │
+└──────────────┬──────────────────────────┘
+               │
+               │ Every 30 seconds (configurable)
+               │
+               ▼
+      ┌────────────────┐
+      │ Check backends │
+      └────────┬───────┘
+               │
+     ┌─────────┴─────────┐
+     │                   │
+     ▼                   ▼
+┌─────────┐         ┌─────────┐
+│  Paqet  │         │   GFW   │
+│ Service │         │ Knocker │
+└────┬────┘         └────┬────┘
+     │                   │
+     │ is_process_running?
+     │ is_process_healthy?
+     │
+     ├─ Healthy → Continue
+     │
+     └─ Crashed → Auto-restart
+         │
+         ├─ Calculate backoff delay
+         ├─ Wait delay
+         ├─ systemctl restart
+         ├─ Verify started
+         └─ Update restart counters
+```
+
+### Graceful Shutdown Pattern
+
+Flowless implements a two-phase shutdown pattern:
+
+1. **Phase 1: Graceful (SIGTERM)**
+   - Send SIGTERM signal
+   - Wait up to timeout (default: 30 seconds)
+   - Allow process to clean up resources, close connections
+
+2. **Phase 2: Force (SIGKILL)**
+   - If process still running after timeout
+   - Send SIGKILL signal (cannot be ignored)
+   - Immediately terminates process
+
+Example timeline:
+```
+T+0s:  Send SIGTERM
+T+1s:  Check if stopped
+T+2s:  Check if stopped
+...
+T+29s: Check if stopped
+T+30s: Still running → Send SIGKILL
+T+31s: Verify stopped
+```
+
+### Health Checks
+
+The process manager performs multi-level health checks:
+
+**Level 1: PID Check**
+```bash
+# Verify PID file exists and contains valid numeric PID
+test -f /var/run/flowless-backend.pid
+# Verify process is running
+kill -0 $PID
+```
+
+**Level 2: Port Check**
+```bash
+# Verify SOCKS5 port is listening
+ss -tln sport = :1080 | grep LISTEN
+```
+
+**Level 3: Connection Test** (optional)
+```bash
+# Attempt to connect to SOCKS5 port
+timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/1080"
+```
+
+A process is considered healthy when:
+- PID is valid and process exists
+- PID file is not stale
+- Port is listening (if port check enabled)
+- Process responds to signals
+
+### Resource Monitoring
+
+**Tracked Metrics:**
+- **CPU**: Percentage from `ps -o %cpu`
+- **Memory**: Resident Set Size (RSS) in KB/MB from `ps -o rss`
+- **Uptime**: Calculated from PID file creation time
+- **Connections**: Active connections from `ss` or `netstat`
+
+**Update Frequency:**
+- On-demand via `flowless stats`
+- Real-time via `flowless watch` (2-second intervals)
+- Watchdog checks every 30 seconds
+
+**Data Sources:**
+```bash
+# CPU and memory
+ps -p $PID -o %cpu=,%mem=,rss=
+
+# Uptime
+stat -c %Y /var/run/flowless-backend.pid
+
+# Connections
+ss -tn sport = :$PORT | grep ESTAB | wc -l
+```
+
+### Configuration
+
+**Watchdog settings** (`/etc/flowless/watchdog.conf`):
+```bash
+CHECK_INTERVAL=30      # Health check frequency (seconds)
+MAX_RESTARTS=5         # Max restart attempts in window
+RESTART_WINDOW=300     # Time window for restart counter (seconds)
+WATCHDOG_ENABLED=true  # Enable/disable auto-restart
+ALERT_THRESHOLD=3      # Send alerts after N restarts
+```
+
+**Restart delays** (exponential backoff):
+- Attempt 1: 5 seconds
+- Attempt 2: 10 seconds
+- Attempt 3: 20 seconds
+- Attempt 4: 40 seconds
+- Attempt 5: 80 seconds
+
+### Security Considerations
+
+**PID File Validation:**
+- Always validate PID is numeric before use
+- Check process actually exists before sending signals
+- Remove stale PID files automatically
+- Prevents PID reuse attacks
+
+**Watchdog Capabilities:**
+- Runs as root (required for systemctl restart)
+- Limited capabilities: CAP_KILL, CAP_SYS_ADMIN
+- Cannot access network or filesystem beyond monitoring
+- Isolated with PrivateTmp=true
+
+**Process Isolation:**
+- Backends run as dedicated users (flowless-paqet, flowless-gfw)
+- Watchdog cannot directly kill user processes
+- Must use systemctl for controlled restarts
+- Audit trail via journald
+
+### Performance Impact
+
+**Resource overhead:**
+- Watchdog: ~1-2 MB memory, negligible CPU
+- Health checks: ~0.1% CPU per check
+- Monitoring: No persistent overhead (on-demand)
+
+**Restart latency:**
+- Detection: Up to CHECK_INTERVAL (30s default)
+- Backoff delay: 5-80 seconds depending on attempt
+- Restart time: 2-5 seconds for process start
+- Total: 37-115 seconds for first restart
+
+**Optimization tips:**
+- Reduce CHECK_INTERVAL for faster detection (increases CPU usage)
+- Increase RESTART_WINDOW for more lenient restart limits
+- Use port health checks only when necessary
+- Monitor systemd journal size (watchdog logs verbosely)
