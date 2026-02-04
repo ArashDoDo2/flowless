@@ -6,6 +6,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Note: Running as root is required to use systemctl restart
+# For production, consider using sudo with limited permissions
 User=root
 ExecStart=/usr/local/bin/flowless-watchdog
 Restart=always
@@ -16,11 +18,14 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=flowless-watchdog
 
-# Security
+# Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
 
 # Allow watchdog to restart services
+# These capabilities are needed for systemctl operations
 CapabilityBoundingSet=CAP_KILL CAP_SYS_ADMIN
 
 [Install]

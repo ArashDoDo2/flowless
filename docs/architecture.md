@@ -528,11 +528,12 @@ ALERT_THRESHOLD=3      # Send alerts after N restarts
 ```
 
 **Restart delays** (exponential backoff):
-- Attempt 1: 5 seconds
-- Attempt 2: 10 seconds
-- Attempt 3: 20 seconds
-- Attempt 4: 40 seconds
-- Attempt 5: 80 seconds
+- Attempt 1: 5 seconds (restart_count=0)
+- Attempt 2: 10 seconds (restart_count=1)
+- Attempt 3: 20 seconds (restart_count=2)
+- Attempt 4: 40 seconds (restart_count=3)
+- Attempt 5: 80 seconds (restart_count=4)
+- Maximum delay is capped at 300 seconds
 
 ### Security Considerations
 

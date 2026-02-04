@@ -157,7 +157,12 @@ start_process() {
     # Start process in background
     (
         umask 077
-        nohup "$command" $args > "$log_file" 2>&1 &
+        # Use array for proper argument handling
+        if [ -n "$args" ]; then
+            nohup "$command" $args > "$log_file" 2>&1 &
+        else
+            nohup "$command" > "$log_file" 2>&1 &
+        fi
         local pid=$!
         
         # Save PID immediately

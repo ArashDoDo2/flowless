@@ -59,16 +59,18 @@ get_process_stats() {
     
     # Get CPU and memory from ps
     local cpu_mem
-    cpu_mem=$(ps -p "$pid" -o %cpu=,%mem=,rss= 2>/dev/null | tr -s ' ')
+    cpu_mem=$(ps -p "$pid" -o %cpu=,%mem=,rss= 2>/dev/null | head -1 | tr -s ' ' | sed 's/^ //')
     
     if [ -z "$cpu_mem" ]; then
         echo "status=not_running"
         return 1
     fi
     
-    local cpu=$(echo "$cpu_mem" | awk '{print $1}')
-    local mem_percent=$(echo "$cpu_mem" | awk '{print $2}')
-    local mem_rss=$(echo "$cpu_mem" | awk '{print $3}')  # KB
+    # Parse values more safely
+    local cpu mem_percent mem_rss
+    cpu=$(echo "$cpu_mem" | cut -d' ' -f1)
+    mem_percent=$(echo "$cpu_mem" | cut -d' ' -f2)
+    mem_rss=$(echo "$cpu_mem" | cut -d' ' -f3)  # KB
     
     # Calculate uptime
     local start_time

@@ -121,7 +121,11 @@ watch_process() {
         
         if [ "$restart_count" -lt "$MAX_RESTARTS" ]; then
             # Calculate backoff delay (exponential: 5, 10, 20, 40, 80 seconds)
+            # Cap at 300 seconds to prevent overflow
             local delay=$((5 * (2 ** restart_count)))
+            if [ "$delay" -gt 300 ]; then
+                delay=300
+            fi
             
             log_warn "$name crashed! Restarting in ${delay}s (attempt $((restart_count + 1))/$MAX_RESTARTS)"
             
