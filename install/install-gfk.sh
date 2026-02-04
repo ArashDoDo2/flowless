@@ -84,8 +84,13 @@ max_connections=1024
 buffer_size=4096
 EOF
 fi
+
+# Set secure file permissions
+chmod 600 "$CONFIG_DIR/gfk.conf"
+
 echo -e "${GREEN}✓ Configuration installed to $CONFIG_DIR/gfk.conf${NC}"
 echo -e "${YELLOW}⚠ Remember to edit $CONFIG_DIR/gfk.conf with your server details${NC}"
+echo -e "${YELLOW}ℹ To safely update config, use the provided config libraries in lib/config-writer.sh${NC}"
 
 # Install systemd service
 echo -e "${YELLOW}Installing systemd service...${NC}"
